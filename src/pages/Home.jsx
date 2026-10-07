@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Heart, ShoppingCart, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { products as staticProducts } from "../products";
 import { getLocalizedProducts } from "../utils/productLocalization";
 
 function Home({
@@ -13,42 +14,47 @@ function Home({
 }) {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
-  const [products, setProducts] = useState([]);
+
   const [addedProduct, setAddedProduct] = useState(null);
 
-  // Fetch products from Express + MongoDB
-  useEffect(() => {
-    fetch("http://localhost:5001/api/products")
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Failed to fetch products");
-        }
+  /*
+   * Use products from products.js instead of MongoDB.
+   *
+   * Your products.js has `id`.
+   * Your existing app uses `_id`.
+   * So we create `_id` from `id` to keep
+   * Cart/Wishlist/Product navigation compatible.
+   */
+  const products = staticProducts.map((product) => ({
+    ...product,
+    _id: String(product.id),
+  }));
 
-        return response.json();
-      })
-      .then((data) => {
-        setProducts(data);
-      })
-      .catch((error) => {
-        console.error("Error fetching products:", error);
-      });
-  }, []);
+  // Localize products
+  const localizedProducts = getLocalizedProducts(
+    products,
+    i18n.language
+  );
 
-  // Search / filter products
-  const localizedProducts = getLocalizedProducts(products, i18n.language);
+  // Search products
   const filteredProducts = localizedProducts.filter((product) => {
-    const searchText = search.toLowerCase();
+    const searchText = search.toLowerCase().trim();
+
+    if (!searchText) {
+      return true;
+    }
 
     return (
-      product.name.toLowerCase().includes(searchText) ||
-      product.category.toLowerCase().includes(searchText)
+      product.name?.toLowerCase().includes(searchText) ||
+      product.category?.toLowerCase().includes(searchText) ||
+      product.description?.toLowerCase().includes(searchText)
     );
   });
 
   // Check wishlist
   const isWishlisted = (productId) => {
     return wishlist.some(
-      (item) => item._id === productId
+      (item) => String(item._id || item.id) === String(productId)
     );
   };
 
@@ -70,8 +76,8 @@ function Home({
 
   return (
     <div>
+      {/* ================= HERO SECTION ================= */}
 
-      {/* Hero Section */}
       <section className="hero">
         <div>
           <p className="hero-tag">
@@ -88,14 +94,26 @@ function Home({
             {t("home.heroText")}
           </p>
 
-          <button className="shop-btn">
+          <button
+            className="shop-btn"
+            onClick={() => {
+              document
+                .querySelector(".products-section")
+                ?.scrollIntoView({
+                  behavior: "smooth",
+                });
+            }}
+          >
             {t("home.shopNow")}
           </button>
         </div>
       </section>
 
-      {/* Products Section */}
+      {/* ================= PRODUCTS SECTION ================= */}
+
       <section className="products-section">
+
+        {/* Heading */}
 
         <div className="section-heading">
           <div>
@@ -110,33 +128,55 @@ function Home({
             </h2>
           </div>
 
-          <button className="view-all">
+          <button
+            className="view-all"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          >
             {t("home.viewAll")}
           </button>
         </div>
 
-        {/* Product Grid */}
-        {filteredProducts.length > 0 ? (
+        {/* Product Count */}
 
+        <p
+          style={{
+            marginBottom: "20px",
+            color: "#777",
+            fontSize: "14px",
+          }}
+        >
+          {filteredProducts.length} products available
+        </p>
+
+        {/* ================= PRODUCT GRID ================= */}
+
+        {filteredProducts.length > 0 ? (
           <div className="product-grid">
 
             {filteredProducts.map((product) => (
-
               <div
                 className="product-card"
                 key={product._id}
-                onClick={() => navigate(`/product/${product._id}`)}
+                onClick={() =>
+                  navigate(`/product/${product._id}`)
+                }
               >
 
                 {/* Product Image */}
+
                 <div className="product-image">
 
                   <img
                     src={product.image}
                     alt={product.name}
+                    onError={(event) => {
+                      event.currentTarget.src =
+                        "https://via.placeholder.com/500x500?text=Product";
+                    }}
                   />
 
                   {/* Wishlist */}
+
                   <button
                     className="wishlist-btn"
                     title={
@@ -146,6 +186,7 @@ function Home({
                     }
                     onClick={(event) => {
                       event.stopPropagation();
+
                       toggleWishlist(product);
                     }}
                   >
@@ -162,37 +203,46 @@ function Home({
                 </div>
 
                 {/* Product Information */}
+
                 <div className="product-content">
+
+                  {/* Category */}
 
                   <p>
                     {product.category}
                   </p>
 
+                  {/* Name */}
+
                   <h3>
                     {product.name}
                   </h3>
+
+                  {/* Description */}
 
                   <p>
                     {product.description}
                   </p>
 
+                  {/* Price */}
+
                   <strong>
-                    ₹{product.price}
+                    ₹{Number(product.price).toLocaleString("en-IN")}
                   </strong>
 
-                  {/* Add to Cart */}
+                  {/* Add To Cart */}
+
                   <button
                     className="cart-btn"
                     title={t("home.addToCart")}
                     onClick={(event) => {
                       event.stopPropagation();
+
                       handleAddToCart(product);
                     }}
                   >
                     {addedProduct === product._id ? (
-                      <>
-                        {t("home.added")}
-                      </>
+                      t("home.added")
                     ) : (
                       <>
                         <ShoppingCart size={18} />
@@ -202,29 +252,31 @@ function Home({
                   </button>
 
                   {/* Buy Now */}
+
                   <button
                     className="buy-now-btn"
                     title={t("home.buyNow")}
                     onClick={(event) => {
                       event.stopPropagation();
+
                       handleBuyNow(product);
                     }}
                   >
                     <Zap size={18} />
+
                     {t("home.buyNow")}
                   </button>
 
                 </div>
 
               </div>
-
             ))}
 
           </div>
-
         ) : (
 
-          /* No Products */
+          /* ================= NO PRODUCTS ================= */
+
           <div className="no-products">
 
             <h3>
@@ -236,11 +288,9 @@ function Home({
             </p>
 
           </div>
-
         )}
 
       </section>
-
     </div>
   );
 }

@@ -5,11 +5,7 @@ const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 const productRoutes = require("./routes/productRoutes");
 
-// Load environment variables
 dotenv.config();
-
-// Connect to MongoDB
-connectDB();
 
 const app = express();
 
@@ -17,18 +13,24 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Connect to MongoDB
+connectDB();
+
 // Routes
 app.use("/api/products", productRoutes);
 
-// Test route
 app.get("/", (req, res) => {
   res.send("E-Commerce API is running");
 });
 
-// Port
-const PORT = process.env.PORT || 5000;
+// Export for Vercel
+module.exports = app;
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Local development
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
+
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
